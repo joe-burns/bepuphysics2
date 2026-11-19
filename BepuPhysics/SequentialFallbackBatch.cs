@@ -93,7 +93,10 @@ namespace BepuPhysics
         /// <returns>True if the body was dynamic and no longer has any constraints associated with it in the fallback batch, false otherwise.</returns>
         internal bool RemoveOneBodyReferenceFromDynamicsSet(int bodyReference, ref QuickList<int> allocationIdsToFree)
         {
-            if (!dynamicBodyConstraintCounts.GetTableIndices(ref bodyReference, out var tableIndex, out var bodyReferencesIndex))
+            //LOCAL FIX (not upstream; a possible PR): the dictionary is dropped when its last body leaves, and this can be called again in the same pass
+            //(ConstraintRemover.RemoveConstraintsFromFallbackBatchReferencedHandles). Looking a key up in the unallocated dictionary read through a null table.
+            //TryRemoveDynamicBodyFromTracking below already checks this.
+            if (!dynamicBodyConstraintCounts.Keys.Allocated || !dynamicBodyConstraintCounts.GetTableIndices(ref bodyReference, out var tableIndex, out var bodyReferencesIndex))
                 return false;
             ref var constraintCount = ref dynamicBodyConstraintCounts.Values[bodyReferencesIndex];
             --constraintCount;
