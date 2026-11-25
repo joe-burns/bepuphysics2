@@ -392,9 +392,18 @@ namespace BepuPhysics
                 //By having the main thread never yield, the only way for all progress to halt is for the OS to aggressively unschedule the main thread.
                 //That is very rare when dealing with CPUs with plenty of cores to go around relative to the scheduled work.                
                 //(Why not notify the OS that waiting threads actually want to be executed? Just overhead. Feel free to experiment with different approaches, but so far this has won empirically.)
+                //(Norbodyssey, local: every so often the wait passes through Thread.Sleep(0), which returns at once when nothing else is ready to run.
+                //A loop of nothing but short spins never lets the runtime stop this thread: when it stops every thread, for a collection or a profiler or debugger,
+                //the workers, which yield, are stopped at once, and this thread then waits here for work they can no longer do, while the runtime waits for this thread.
+                //Nothing moved until the runtime happened to catch it, 1 to 64 seconds later, with the whole process held meanwhile (Windows, 2026-11-24).)
+                int mainWaits = 0;
                 while (Volatile.Read(ref substepContext.CompletedWorkBlockCount) != availableBlocksCount)
                 {
                     Thread.SpinWait(3);
+                    if ((++mainWaits & 1023) == 0)
+                    {
+                        Thread.Sleep(0);
+                    }
                 }
                 //Console.WriteLine($"Completed blocks count: {substepContext.CompletedWorkBlockCount}.");
                 //All workers are done. We can safely reset the counter for the next time this stage is used.
